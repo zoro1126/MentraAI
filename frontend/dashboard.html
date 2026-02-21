@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - MindSpace</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="assets/js/app.js?v=2" defer></script>
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">🧠 MindSpace</a>
+    <div class="nav-links">
+      <a href="chat.html">Chat</a>
+      <a href="journal.html">Journal</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h2>📊 Mental Health Overview</h2>
+    <p class="mb-4 text-muted">Your personal insights and reflective metrics across recent journal entries.</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <h3>Avg Mood (7d)</h3>
+        <div id="avg-mood" class="metric-value">--</div>
+      </div>
+      <div class="metric-card">
+        <h3>Avg Anxiety</h3>
+        <div id="avg-anxiety" class="metric-value">--</div>
+      </div>
+      <div class="metric-card">
+        <h3>Avg Stress</h3>
+        <div id="avg-stress" class="metric-value">--</div>
+      </div>
+      <div class="metric-card">
+        <h3>Avg Sleep</h3>
+        <div id="avg-sleep" class="metric-value">--</div>
+      </div>
+      <div class="metric-card">
+        <h3>Streak</h3>
+        <div id="journal-streak" class="metric-value">--</div>
+        <div class="metric-status" style="background: rgba(99,102,241,0.2); color: #a5b4fc;">Days</div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <h3 style="margin-bottom: 1.5rem;">🧠 Derived Insights</h3>
+      <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="text-center">
+          <p class="text-secondary mb-1">Emotional Stability</p>
+          <span id="stability" class="metric-value" style="font-size: 2rem;">--</span>
+        </div>
+        <div class="text-center">
+          <p class="text-secondary mb-1">Burnout Risk</p>
+          <span id="burnout" class="metric-status status-low">--</span>
+        </div>
+        <div class="text-center">
+          <p class="text-secondary mb-1">Isolation Risk</p>
+          <span id="isolation" class="metric-status status-low">--</span>
+        </div>
+      </div>
+      <p class="text-muted text-center mt-2" style="font-size: 0.8rem;">These are reflective insights based on your
+        entries, not medical diagnoses.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card chart-container">
+        <h3>Mood Over Time</h3>
+        <canvas id="moodChart"></canvas>
+      </div>
+
+      <div class="card chart-container">
+        <h3>Stress vs Sleep</h3>
+        <canvas id="stressSleepChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card-grid mb-4">
+      <div class="card chart-container">
+        <h3>Anxiety vs Social</h3>
+        <canvas id="anxietySocialChart"></canvas>
+      </div>
+
+      <div class="card chart-container">
+        <h3>Energy vs Productivity</h3>
+        <canvas id="energyProductivityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>

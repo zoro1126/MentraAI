@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+.env/
+
+# SQLite database
+*.db
+
+# Logs
+*.log
+
+# LLM Models
+*.gguf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VSCode (optional)
+.vscode/
+
+# Python cache
+backend/app/__pycache__/

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journal - MindSpace</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script src="assets/js/app.js?v=2" defer></script>
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">🧠 MindSpace</a>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="chat.html">Chat</a>
+    </div>
+  </nav>
+
+  <div class="container" style="max-width: 800px;">
+    <h2 class="mb-4">Daily Reflection & Check-In</h2>
+
+    <div class="card mb-4">
+      <h3>📝 Reflection</h3>
+      <p class="text-muted mb-2">Write down anything on your mind. This text is securely saved locally.</p>
+      <textarea id="journal-text" placeholder="Write your thoughts..." spellcheck="false"></textarea>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <h3>🧠 Emotional</h3>
+
+        <div class="form-group mt-2">
+          <label>Mood <span id="mood-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="mood">
+        </div>
+
+        <div class="form-group">
+          <label>Anxiety <span id="anxiety-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="anxiety">
+        </div>
+
+        <div class="form-group">
+          <label>Stress <span id="stress-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="stress">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="mb-2">⚡ Physical & Social</h3>
+
+        <div class="form-group">
+          <label>Energy <span id="energy-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="energy">
+        </div>
+
+        <div class="form-group mb-4">
+          <label>Productivity <span id="productivity-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="productivity">
+        </div>
+
+        <div class="form-group">
+          <label>Social Connection <span id="social-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="social">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-4 mb-4">
+      <h3>🌙 Sleep Tracking</h3>
+      <div class="card-grid" style="margin-top: 1rem; gap: 2rem;">
+        <div class="form-group" style="margin: 0;">
+          <label>Sleep Duration (Hours)</label>
+          <input type="number" id="sleep-hours" min="0" max="24" step="0.5" value="7.5" style="margin-top: 0.5rem;">
+        </div>
+
+        <div class="form-group" style="margin: 0;">
+          <label>Sleep Quality <span id="sleep-quality-value">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="sleep-quality" style="margin-top: 0.5rem;">
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <button class="primary-btn" onclick="saveJournal()" style="padding: 1rem 3rem; font-size: 1.1rem;">Save
+        Entry</button>
+    </div>
+
+    <!-- Journal History Section -->
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 3rem 0;">
+    <h2 class="mb-4">Past Entries</h2>
+    <div id="journal-history" style="display: flex; flex-direction: column; gap: 1rem;">
+      <p class="text-muted text-center" style="font-size: 0.9rem;">Loading history...</p>
+    </div>
+
+  </div>
+</body>
+
+</html>

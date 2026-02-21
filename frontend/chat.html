@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat - MindSpace</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script src="assets/js/app.js?v=2" defer></script>
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">🧠 MindSpace</a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="dashboard.html">Dashboard</a>
+    </div>
+  </nav>
+
+  <div class="container" style="padding-top: 2rem;">
+    <div class="chat-container">
+      <div id="chat-box" class="chat-box">
+        <div class="chat-message ai">
+          Hello! I'm your AI companion. How are you feeling today?
+        </div>
+      </div>
+
+      <div class="chat-input">
+        <input type="text" id="user-input" placeholder="Type a message..."
+          onkeypress="if(event.key === 'Enter') sendMessage()" />
+        <button class="primary-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
