@@ -1,0 +1,7 @@
+opencv-python
+mediapipe
+numpy
+flask
+faster-whisper
+llama-cpp-python
+pyttsx3

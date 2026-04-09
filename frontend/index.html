@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MentraAI - AI-Powered Mental Health Assistant. Get personalized mental health assessments, real-time emotion analysis, and tailored wellness plans.">
+    <title>MentraAI — Mental Health Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ============================================================ -->
+    <!-- PARTICLE BACKGROUND                                          -->
+    <!-- ============================================================ -->
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 1: LOGIN                                              -->
+    <!-- ============================================================ -->
+    <section id="screen-login" class="screen active">
+        <div class="login-container glass-card fade-in-up">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 48 48" fill="none">
+                        <circle cx="24" cy="24" r="22" stroke="url(#grad1)" stroke-width="3"/>
+                        <path d="M16 28C16 28 18.5 32 24 32C29.5 32 32 28 32 28" stroke="url(#grad1)" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="18" cy="20" r="2" fill="url(#grad1)"/>
+                        <circle cx="30" cy="20" r="2" fill="url(#grad1)"/>
+                        <defs>
+                            <linearGradient id="grad1" x1="0" y1="0" x2="48" y2="48">
+                                <stop stop-color="#6366f1"/>
+                                <stop offset="1" stop-color="#a855f7"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1 class="brand-name">Mentra<span class="accent">AI</span></h1>
+                <p class="brand-tagline">Your AI Mental Health Companion</p>
+            </div>
+
+            <form id="login-form" class="form-stack" autocomplete="off">
+                <div class="input-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" placeholder="you@example.com" required>
+                    <div class="input-glow"></div>
+                </div>
+                <div class="input-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required>
+                    <div class="input-glow"></div>
+                </div>
+                <button type="submit" id="login-btn" class="btn-primary">
+                    <span>Sign In</span>
+                    <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+                <p id="login-error" class="error-msg hidden"></p>
+            </form>
+
+            <div class="login-footer">
+                <button id="show-signup" class="link-btn">Create an account</button>
+                <span class="sep">•</span>
+                <button class="link-btn">Forgot password?</button>
+            </div>
+        </div>
+
+        <!-- SIGNUP MODAL -->
+        <div id="signup-modal" class="modal-overlay hidden">
+            <div class="modal glass-card fade-in-up">
+                <button id="close-signup" class="modal-close">&times;</button>
+                <h2>Create Account</h2>
+                <form id="signup-form" class="form-stack">
+                    <div class="input-group">
+                        <label for="signup-name">Full Name</label>
+                        <input type="text" id="signup-name" placeholder="John Doe" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="signup-email">Email</label>
+                        <input type="email" id="signup-email" placeholder="you@example.com" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="signup-password">Password</label>
+                        <input type="password" id="signup-password" placeholder="Min 6 characters" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn-primary"><span>Sign Up</span></button>
+                    <p id="signup-error" class="error-msg hidden"></p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 2: USER DETAILS                                       -->
+    <!-- ============================================================ -->
+    <section id="screen-profile" class="screen">
+        <div class="screen-inner">
+            <!-- Navigation -->
+            <div class="screen-nav">
+                <button class="nav-btn" onclick="showScreen('screen-login')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    <span>Back to Login</span>
+                </button>
+                <button class="nav-btn nav-btn-forward" onclick="showScreen('screen-phq9')">
+                    <span>PHQ-9</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step active" data-step="1"><span>1</span><small>Profile</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="2"><span>2</span><small>PHQ-9</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="3"><span>3</span><small>Analysis</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="4"><span>4</span><small>Plan</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="5"><span>5</span><small>Dashboard</small></div>
+            </div>
+
+            <div class="content-card glass-card fade-in-up">
+                <h2 class="section-title">Tell Us About You</h2>
+                <p class="section-subtitle">This helps us personalize your experience</p>
+
+                <form id="profile-form" class="form-grid">
+                    <div class="input-group">
+                        <label for="profile-first-name">First Name</label>
+                        <input type="text" id="profile-first-name" placeholder="John" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="profile-last-name">Last Name</label>
+                        <input type="text" id="profile-last-name" placeholder="Doe" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="profile-age">Age</label>
+                        <input type="number" id="profile-age" placeholder="25" min="10" max="120" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="profile-occupation">Occupation</label>
+                        <input type="text" id="profile-occupation" placeholder="Software Engineer">
+                    </div>
+                    <div class="input-group full-width">
+                        <label for="profile-profession">Profession / Field</label>
+                        <input type="text" id="profile-profession" placeholder="Technology">
+                    </div>
+
+                    <!-- Location Fields -->
+                    <div class="input-group">
+                        <label for="profile-country">Country</label>
+                        <input type="text" id="profile-country" placeholder="United States">
+                    </div>
+                    <div class="input-group">
+                        <label for="profile-state">State / Province</label>
+                        <input type="text" id="profile-state" placeholder="California">
+                    </div>
+                    <div class="input-group">
+                        <label for="profile-city">City</label>
+                        <input type="text" id="profile-city" placeholder="San Francisco">
+                    </div>
+
+                    <div class="input-group full-width">
+                        <label for="profile-hobbies">Hobbies & Interests</label>
+                        <textarea id="profile-hobbies" rows="3" placeholder="Reading, hiking, painting…"></textarea>
+                    </div>
+
+                    <button type="submit" id="profile-next-btn" class="btn-primary full-width">
+                        <span>Next: PHQ-9 Assessment</span>
+                        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 3: PHQ-9 QUESTIONNAIRE                                -->
+    <!-- ============================================================ -->
+    <section id="screen-phq9" class="screen">
+        <div class="screen-inner">
+            <!-- Navigation -->
+            <div class="screen-nav">
+                <button class="nav-btn" onclick="showScreen('screen-profile')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    <span>Profile</span>
+                </button>
+                <button class="nav-btn nav-btn-forward" onclick="showScreen('screen-video')">
+                    <span>Analysis</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step completed" data-step="1"><span>✓</span><small>Profile</small></div>
+                <div class="step-line filled"></div>
+                <div class="step active" data-step="2"><span>2</span><small>PHQ-9</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="3"><span>3</span><small>Analysis</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="4"><span>4</span><small>Plan</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="5"><span>5</span><small>Dashboard</small></div>
+            </div>
+
+            <div class="content-card glass-card fade-in-up">
+                <h2 class="section-title">PHQ-9 Assessment</h2>
+                <p class="section-subtitle">Over the last 2 weeks, how often have you been bothered by the following?</p>
+
+                <div id="phq9-progress-bar" class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: 0%"></div>
+                    <span class="progress-label">0 / 9</span>
+                </div>
+
+                <form id="phq9-form">
+                    <div id="phq9-questions-container"></div>
+                    <button type="submit" id="phq9-submit-btn" class="btn-primary full-width" disabled>
+                        <span>Submit Assessment</span>
+                        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 4: AI VIDEO CALL / CV ANALYSIS                        -->
+    <!-- ============================================================ -->
+    <section id="screen-video" class="screen">
+        <div class="screen-inner">
+            <!-- Navigation -->
+            <div class="screen-nav">
+                <button class="nav-btn" onclick="showScreen('screen-phq9')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    <span>PHQ-9</span>
+                </button>
+                <button class="nav-btn nav-btn-forward" onclick="showScreen('screen-plan')">
+                    <span>Plan</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step completed" data-step="1"><span>✓</span><small>Profile</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="2"><span>✓</span><small>PHQ-9</small></div>
+                <div class="step-line filled"></div>
+                <div class="step active" data-step="3"><span>3</span><small>Analysis</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="4"><span>4</span><small>Plan</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="5"><span>5</span><small>Dashboard</small></div>
+            </div>
+
+            <div class="video-layout">
+                <!-- Video Feed -->
+                <div class="video-panel glass-card fade-in-up">
+                    <h3 class="panel-title">
+                        <span class="live-dot"></span> Live Video Analysis
+                    </h3>
+                    <div class="video-wrapper">
+                        <video id="webcam-video" autoplay playsinline muted></video>
+                        <!-- Landmark overlay canvas (drawn on top of video) -->
+                        <canvas id="landmark-overlay" class="landmark-overlay hidden"></canvas>
+                        <canvas id="webcam-canvas" class="hidden"></canvas>
+                        <div id="video-placeholder" class="video-placeholder">
+                            <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="rgba(255,255,255,0.2)" stroke-width="2"/><path d="M26 22v20l16-10z" fill="rgba(255,255,255,0.3)"/></svg>
+                            <p>Click "Start Camera" to begin</p>
+                        </div>
+                    </div>
+                    <div class="video-controls">
+                        <button id="start-camera-btn" class="btn-secondary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                            <span>Start Camera</span>
+                        </button>
+                        <button id="stop-camera-btn" class="btn-secondary danger hidden">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                            <span>Stop</span>
+                        </button>
+                        <button id="toggle-landmarks-btn" class="btn-secondary hidden" title="Toggle face landmarks overlay">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="7" r="1.5" fill="currentColor"/><circle cx="19" cy="7" r="1.5" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="5" cy="17" r="1.5" fill="currentColor"/><circle cx="19" cy="17" r="1.5" fill="currentColor"/><path d="M8 20c1.2.7 2.6 1 4 1s2.8-.3 4-1" stroke-linecap="round"/></svg>
+                            <span id="landmark-btn-label">Show Landmarks</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analysis Panel -->
+                <div class="analysis-panel">
+                    <!-- AI Interview Section -->
+                    <div class="interview-card glass-card fade-in-up">
+                        <h3 class="panel-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            AI Interview
+                        </h3>
+
+                        <!-- Interview Progress -->
+                        <div id="interview-progress" class="interview-progress">
+                            <div class="interview-progress-bar">
+                                <div id="interview-progress-fill" class="interview-progress-fill" style="width: 0%"></div>
+                            </div>
+                            <span id="interview-progress-label" class="interview-progress-label">0 / 10 categories</span>
+                        </div>
+
+                        <!-- Category Badge -->
+                        <div id="interview-category" class="interview-category hidden">
+                            <span id="interview-category-icon" class="category-icon"></span>
+                            <span id="interview-category-name" class="category-name"></span>
+                            <span id="interview-category-purpose" class="category-purpose"></span>
+                        </div>
+
+                        <!-- Current Question -->
+                        <div id="interview-question-display" class="interview-question">
+                            <p id="interview-current-question" class="current-question">Click "Start Interview" to begin the AI-guided session</p>
+                        </div>
+
+                        <!-- User Response Preview (what STT captured) -->
+                        <div id="interview-response-preview" class="response-preview hidden">
+                            <label>Your response:</label>
+                            <p id="interview-stt-text" class="stt-text"></p>
+                        </div>
+
+                        <!-- Interview Controls -->
+                        <div class="interview-controls">
+                            <button id="start-interview-btn" class="btn-primary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+                                <span>Start Interview</span>
+                            </button>
+                            <button id="done-question-btn" class="btn-secondary btn-done hidden">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>Done</span>
+                            </button>
+                            <button id="skip-question-btn" class="btn-secondary hidden">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                <span>Skip</span>
+                            </button>
+                            <div id="mic-indicator" class="mic-indicator hidden">
+                                <div class="mic-pulse"></div>
+                                <span>Listening…</span>
+                            </div>
+                            <!-- Real-time voice amplitude bar -->
+                            <div id="voice-bar-container" class="voice-bar-container hidden">
+                                <div class="voice-bar-label">Voice Level</div>
+                                <div class="voice-bar-track">
+                                    <div id="voice-bar-fill" class="voice-bar-fill"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emotion / Stress indicators -->
+                    <div class="indicator-card glass-card fade-in-up">
+                        <h3 class="panel-title">Stress & Emotion Indicators</h3>
+                        <div class="indicator-grid">
+                            <div class="indicator-item">
+                                <label>Emotion</label>
+                                <div id="cv-emotion" class="indicator-value">—</div>
+                            </div>
+                            <div class="indicator-item">
+                                <label>Confidence</label>
+                                <div id="cv-confidence" class="indicator-value small">—</div>
+                            </div>
+                            <div class="indicator-item" style="grid-column: 1 / -1;">
+                                <label>Stress Level</label>
+                                <div class="stress-meter">
+                                    <div id="cv-stress-bar" class="stress-fill" style="width: 50%"></div>
+                                </div>
+                                <div id="cv-stress-value" class="indicator-value small">0.0000</div>
+                            </div>
+                            <div class="indicator-item">
+                                <label>EAR (Eyes)</label>
+                                <div id="cv-eye" class="indicator-value small">—</div>
+                            </div>
+                            <div class="indicator-item">
+                                <label>Blink Rate</label>
+                                <div id="cv-blink" class="indicator-value small">—</div>
+                            </div>
+                            <div class="indicator-item">
+                                <label>Mouth <span id="cv-mouth-rel" class="mouth-rel">(R:—)</span></label>
+                                <div id="cv-mouth" class="indicator-value small">—</div>
+                            </div>
+                            <div class="indicator-item">
+                                <label>Head P/Y</label>
+                                <div id="cv-head-pose" class="indicator-value small">—</div>
+                            </div>
+                        </div>
+
+                        <!-- FACS Action Units Row -->
+                        <div class="au-section">
+                            <div class="au-section-title">Action Units (FACS)</div>
+                            <div class="au-grid">
+                                <div class="au-item" title="Inner Brow Raiser — Sadness/Surprise">
+                                    <span class="au-label">AU1</span>
+                                    <div class="au-bar-wrap"><div id="au1-bar" class="au-bar"></div></div>
+                                    <span id="au1-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Outer Brow Raiser — Surprise">
+                                    <span class="au-label">AU2</span>
+                                    <div class="au-bar-wrap"><div id="au2-bar" class="au-bar"></div></div>
+                                    <span id="au2-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Brow Lowerer/Furrow — Anger/Stress">
+                                    <span class="au-label">AU4</span>
+                                    <div class="au-bar-wrap"><div id="au4-bar" class="au-bar au-bar-red"></div></div>
+                                    <span id="au4-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Upper Lid Raiser — Fear/Surprise">
+                                    <span class="au-label">AU5</span>
+                                    <div class="au-bar-wrap"><div id="au5-bar" class="au-bar au-bar-blue"></div></div>
+                                    <span id="au5-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Cheek Raiser (Duchenne) — Genuine Smile">
+                                    <span class="au-label">AU6</span>
+                                    <div class="au-bar-wrap"><div id="au6-bar" class="au-bar au-bar-green"></div></div>
+                                    <span id="au6-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Nose Wrinkler — Disgust">
+                                    <span class="au-label">AU9</span>
+                                    <div class="au-bar-wrap"><div id="au9-bar" class="au-bar au-bar-orange"></div></div>
+                                    <span id="au9-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Lip Corner Puller — Happiness">
+                                    <span class="au-label">AU12</span>
+                                    <div class="au-bar-wrap"><div id="au12-bar" class="au-bar au-bar-green"></div></div>
+                                    <span id="au12-val" class="au-val">—</span>
+                                </div>
+                                <div class="au-item" title="Lip Corner Depressor — Sadness">
+                                    <span class="au-label">AU15</span>
+                                    <div class="au-bar-wrap"><div id="au15-bar" class="au-bar au-bar-blue"></div></div>
+                                    <span id="au15-val" class="au-val">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="cv-status" class="cv-status">Camera not started</div>
+                    </div>
+
+                    <!-- Session transcript -->
+                    <div class="speech-card glass-card fade-in-up">
+                        <h3 class="panel-title">Session Transcript</h3>
+                        <div id="speech-transcript" class="transcript-area">
+                            <p class="placeholder-text">Interview transcripts and AI analysis will appear here…</p>
+                        </div>
+                    </div>
+
+                    <button id="generate-plan-btn" class="btn-primary full-width pulse-glow">
+                        <span>Generate Personal Plan</span>
+                        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 5: PERSONAL PLAN / AI ADVICE                          -->
+    <!-- ============================================================ -->
+    <section id="screen-plan" class="screen">
+        <div class="screen-inner">
+            <!-- Navigation -->
+            <div class="screen-nav">
+                <button class="nav-btn" onclick="showScreen('screen-video')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    <span>Analysis</span>
+                </button>
+                <button class="nav-btn nav-btn-forward" onclick="loadDashboard(); showScreen('screen-dashboard')">
+                    <span>Dashboard</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step completed" data-step="1"><span>✓</span><small>Profile</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="2"><span>✓</span><small>PHQ-9</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="3"><span>✓</span><small>Analysis</small></div>
+                <div class="step-line filled"></div>
+                <div class="step active" data-step="4"><span>4</span><small>Plan</small></div>
+                <div class="step-line"></div>
+                <div class="step" data-step="5"><span>5</span><small>Dashboard</small></div>
+            </div>
+
+            <div class="plan-layout">
+                <!-- Sidebar Summary -->
+                <div class="plan-sidebar">
+                    <div class="glass-card fade-in-up profile-summary-card">
+                        <h3 class="panel-title">Your Profile</h3>
+                        <p id="plan-profile-summary" class="plan-text">—</p>
+                    </div>
+
+                    <div class="glass-card fade-in-up stress-summary-card">
+                        <h3 class="panel-title">Stress & Insights</h3>
+                        <div id="plan-stress-level" class="severity-badge">—</div>
+                        <ul id="plan-stress-insights" class="insight-list"></ul>
+                    </div>
+                </div>
+
+                <!-- Main Plan -->
+                <div class="plan-main">
+                    <div class="glass-card fade-in-up advice-card">
+                        <h3 class="panel-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 017 7c0 2.5-1.5 4.5-3 6-.5.5-.5 1 0 1h-8c.5 0 .5-.5 0-1-1.5-1.5-3-3.5-3-6a7 7 0 017-7z"/><path d="M10 21h4"/></svg>
+                            AI Advice
+                        </h3>
+                        <p id="plan-advice" class="plan-text advice-text">—</p>
+                    </div>
+
+                    <div class="glass-card fade-in-up coping-card">
+                        <h3 class="panel-title">Personalized Coping Steps</h3>
+                        <ol id="plan-coping-steps" class="coping-list"></ol>
+                    </div>
+
+                    <div class="glass-card fade-in-up reminders-card">
+                        <h3 class="panel-title">Daily Reminders</h3>
+                        <ul id="plan-reminders" class="reminder-list"></ul>
+                    </div>
+
+                    <div class="glass-card fade-in-up resources-card">
+                        <h3 class="panel-title">Crisis Resources</h3>
+                        <div id="plan-resources" class="resources-grid"></div>
+                    </div>
+
+                    <div class="plan-actions">
+                        <button id="save-plan-btn" class="btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            <span>Save Plan</span>
+                        </button>
+                        <button id="share-plan-btn" class="btn-secondary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            <span>Share</span>
+                        </button>
+                        <button id="followup-btn" class="btn-secondary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span>Book Follow-up</span>
+                        </button>
+                        <button class="btn-primary" onclick="loadDashboard(); showScreen('screen-dashboard')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                            <span>View Dashboard</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SCREEN 6: DASHBOARD                                          -->
+    <!-- ============================================================ -->
+    <section id="screen-dashboard" class="screen">
+        <div class="screen-inner">
+            <!-- Navigation -->
+            <div class="screen-nav">
+                <button class="nav-btn" onclick="showScreen('screen-plan')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    <span>Back to Plan</span>
+                </button>
+                <button class="nav-btn" onclick="showScreen('screen-profile')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+                    <span>Start Over</span>
+                </button>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step completed" data-step="1"><span>✓</span><small>Profile</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="2"><span>✓</span><small>PHQ-9</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="3"><span>✓</span><small>Analysis</small></div>
+                <div class="step-line filled"></div>
+                <div class="step completed" data-step="4"><span>✓</span><small>Plan</small></div>
+                <div class="step-line filled"></div>
+                <div class="step active" data-step="5"><span>5</span><small>Dashboard</small></div>
+            </div>
+
+            <h2 class="section-title" style="text-align:center; margin-bottom: 8px;">Your Complete Dashboard</h2>
+            <p class="section-subtitle" style="text-align:center;">All your assessment data and results in one place</p>
+
+            <div class="dashboard-grid">
+                <!-- Profile Card -->
+                <div class="glass-card fade-in-up dash-card">
+                    <h3 class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Profile Information
+                    </h3>
+                    <div id="dash-profile" class="dash-content">
+                        <p class="placeholder-text">No profile data yet.</p>
+                    </div>
+                </div>
+
+                <!-- PHQ-9 Card -->
+                <div class="glass-card fade-in-up dash-card">
+                    <h3 class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                        PHQ-9 Assessment
+                    </h3>
+                    <div id="dash-phq9" class="dash-content">
+                        <p class="placeholder-text">No assessment data yet.</p>
+                    </div>
+                </div>
+
+                <!-- Interview Card -->
+                <div class="glass-card fade-in-up dash-card dash-card-wide">
+                    <h3 class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+                        Interview Summary
+                    </h3>
+                    <div id="dash-interview" class="dash-content">
+                        <p class="placeholder-text">No interview data yet.</p>
+                    </div>
+                </div>
+
+                <!-- AI Generated Summary Card -->
+                <div class="glass-card fade-in-up dash-card dash-card-wide">
+                    <h3 class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 017 7c0 2.5-1.5 4.5-3 6-.5.5-.5 1 0 1h-8c.5 0 .5-.5 0-1-1.5-1.5-3-3.5-3-6a7 7 0 017-7z"/><path d="M10 21h4"/></svg>
+                        AI-Generated Summary & Plan
+                    </h3>
+                    <div id="dash-plan" class="dash-content">
+                        <p class="placeholder-text">No plan generated yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TOAST NOTIFICATION                                           -->
+    <!-- ============================================================ -->
+    <div id="toast" class="toast hidden">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- LOADING OVERLAY                                              -->
+    <!-- ============================================================ -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="loader-ring"></div>
+            <p id="loading-text">Loading…</p>
+        </div>
+    </div>
+
+    <script src="particles.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
