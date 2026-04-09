@@ -1,3 +1,7 @@
+import os
+import pickle
+from pathlib import Path
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -766,6 +770,112 @@ class StressAnalyzer:
 
 
 # ============================================================================
+# BEHAVIOR CLASSIFIER  (LightGBM model trained on DAIC-WOZ CLNF features)
+# ============================================================================
+
+_BEHAVIOR_MODEL_PATH   = Path(__file__).parent / "behavior_model.pkl"
+_LABEL_ENCODER_PATH    = Path(__file__).parent / "label_encoder.pkl"
+
+# Feature order must match train.py: AU_COLS + POSE_COLS + gaze_angle_x/y
+_FEATURE_COLS = [
+    "au1", "au2", "au4", "au5", "au6",
+    "au9", "au12", "au15", "au20",
+    "head_pitch", "head_yaw", "head_roll",
+    "gaze_x", "gaze_y",
+]
+_WINDOW_SIZE = 30
+_N_FEATURES  = len(_FEATURE_COLS) * 4   # mean, std, max, min
+
+
+class BehaviorClassifier:
+    """
+    Loads the pre-trained LightGBM behavior model and predicts a behavioural
+    label from a rolling 30-frame window of facial-feature vectors.
+
+    Falls back to label = "calibrating" while the buffer is warming up or
+    if the model files are not found.
+    """
+
+    def __init__(self) -> None:
+        self._model   = None
+        self._encoder = None
+        self._buffer: list[list[float]] = []
+        self._loaded  = False
+        self._load()
+
+    def _load(self) -> None:
+        if not _BEHAVIOR_MODEL_PATH.exists() or not _LABEL_ENCODER_PATH.exists():
+            print("[BehaviorClassifier] Model files not found — will run without behavior classification.")
+            return
+        try:
+            with open(_BEHAVIOR_MODEL_PATH, "rb") as f:
+                self._model = pickle.load(f)
+            with open(_LABEL_ENCODER_PATH, "rb") as f:
+                self._encoder = pickle.load(f)
+            self._loaded = True
+            print("[BehaviorClassifier] Loaded behavior_model.pkl + label_encoder.pkl")
+        except Exception as exc:
+            print(f"[BehaviorClassifier] Failed to load: {exc}")
+
+    def update(self, features: dict) -> dict:
+        """
+        Accept one frame's feature dict from FeatureExtractor.extract().
+        Returns {"behavior": str, "confidence": float}.
+        """
+        if not self._loaded:
+            return {"behavior": "unavailable", "confidence": 0.0}
+
+        # Build feature row for this frame
+        row = [
+            features.get("au1",  0.0),
+            features.get("au2",  0.0),
+            features.get("au4",  0.0),
+            features.get("au5",  0.0),
+            features.get("au6",  0.0),
+            features.get("au9",  0.0),
+            features.get("au12", 0.0),
+            features.get("au15", 0.0),
+            features.get("au20", 0.0),
+            features.get("head_pitch", 0.0),
+            features.get("head_yaw",   0.0),
+            features.get("head_roll",  0.0),
+            0.0,   # gaze_x placeholder (MediaPipe doesn't give gaze angles)
+            0.0,   # gaze_y placeholder
+        ]
+        self._buffer.append(row)
+        if len(self._buffer) > _WINDOW_SIZE:
+            self._buffer.pop(0)
+
+        if len(self._buffer) < _WINDOW_SIZE:
+            remaining = _WINDOW_SIZE - len(self._buffer)
+            return {"behavior": "calibrating", "confidence": 0.0,
+                    "frames_remaining": remaining}
+
+        # Aggregate: [mean | std | max | min] for each of 14 features → 56-dim
+        arr = np.array(self._buffer, dtype=np.float64)
+        feat = np.concatenate([
+            np.mean(arr, axis=0),
+            np.std(arr,  axis=0),
+            np.max(arr,  axis=0),
+            np.min(arr,  axis=0),
+        ])
+
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                proba = self._model.predict_proba([feat])[0]
+            pred_idx  = int(np.argmax(proba))
+            confidence = float(proba[pred_idx])
+            label      = self._encoder.classes_[pred_idx]
+        except Exception as exc:
+            print(f"[BehaviorClassifier] Predict error: {exc}")
+            label, confidence = "ambiguous", 0.0
+
+        return {"behavior": label, "confidence": round(confidence, 3)}
+
+
+# ============================================================================
 # CV PIPELINE
 # ============================================================================
 
@@ -773,8 +883,9 @@ class CVPipeline:
     def __init__(self):
         self.tracker        = LandmarkTracker()
         self.extractor      = FeatureExtractor()
-        self.emotion        = EmotionDetector()
+        self.emotion        = EmotionDetector()   # still used for stress signal
         self.stress         = StressAnalyzer()
+        self.behavior       = BehaviorClassifier()
         self.prev_landmarks = None
 
     def process_frame(self, frame) -> dict | None:
@@ -783,16 +894,25 @@ class CVPipeline:
             return None
 
         features = self.extractor.extract(lm, self.prev_landmarks)
+
+        # --- Behavior classification (primary, model-based) ---
+        behavior_result = self.behavior.update(features)
+
+        # --- EmotionDetector still gives us the stress scalar ---
         emotion_result = self.emotion.detect(features)
-        emotion_str = emotion_result["emotion"]
         stress = self.stress.update(features, emotion_result, self.emotion)
 
         self.prev_landmarks = lm
 
         return {
-            "emotion":     emotion_str,
-            "confidence":  emotion_result.get("confidence", 0),
+            # Behavior (model-predicted)
+            "behavior":    behavior_result["behavior"],
+            "confidence":  behavior_result["confidence"],
+            # Stress scalar (from EmotionDetector / StressAnalyzer)
             "stress":      round(float(stress), 4),
+            # Legacy emotion (kept for backward compat / prompting)
+            "emotion":     emotion_result.get("emotion", "calibrating"),
+            # Raw CV features
             "eye":         features["eye"],
             "mouth":       features["mouth"],
             "mouth_reliability": features["mouth_reliability"],
@@ -813,7 +933,7 @@ class CVPipeline:
             "au12": features.get("au12"),
             "au15": features.get("au15"),
             "au20": features.get("au20"),
-            # Raw landmarks for frontend overlay (numpy array — serialized by API layer)
+            # Raw landmarks for frontend overlay
             "landmarks": lm,
         }
 
@@ -837,18 +957,17 @@ def _draw_overlay(frame, result):
     stress_color = (0, g, r)
 
     overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (340, 240), (20, 20, 20), -1)
+    cv2.rectangle(overlay, (0, 0), (340, 260), (20, 20, 20), -1)
     cv2.addWeighted(overlay, 0.55, frame, 0.45, 0, frame)
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-    emotion_label = result['emotion'].upper()
+    behavior_label = result.get('behavior', 'unavailable').upper()
     conf = result.get('confidence', 0)
-    if result['emotion'] == "calibrating":
-        emotion_label = "CALIBRATING..."
+    if behavior_label in ("CALIBRATING", "UNAVAILABLE"):
         stress_color = (0, 200, 200)
 
     lines = [
-        (f"Emotion : {emotion_label} ({conf:.0%})",         (1.0, 1.0, 1.0)),
+        (f"Behavior: {behavior_label} ({conf:.0%})",        (1.0, 1.0, 1.0)),
         (f"Stress  : {result['stress']:+.4f}",              stress_color),
         (f"EAR     : {result['eye']:.5f}",                  (0.8, 0.8, 0.8)),
         (f"Mouth   : {result['mouth']:.5f} (R:{result['mouth_reliability']:.1f})", (0.8, 0.8, 0.8)),

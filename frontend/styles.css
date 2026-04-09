@@ -1305,6 +1305,35 @@ body {
     margin-bottom: 6px;
 }
 
+/* Text input for typed interview responses */
+.interview-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    backdrop-filter: blur(4px);
+}
+
+.interview-textarea::placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.interview-textarea:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
+}
+
 .stt-text {
     font-size: 0.9rem;
     color: var(--text-secondary);

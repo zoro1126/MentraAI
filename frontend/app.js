@@ -35,21 +35,13 @@ const state = {
     landmarksVisible: false,   // Landmark overlay toggle
     lastLandmarks: null,       // Most recent landmark array from CV
 
-    // Voice / mic level
-    audioCtx: null,
-    analyserNode: null,
-    micStream: null,
-    voiceLevelRaf: null,
-
     // Interview state
     interviewQuestions: [],      // Loaded from backend
-    interviewFlat: [],           // Flattened: [{categoryIdx, questionIdx, category, question, ...}]
-    interviewCurrentIdx: 0,      // Current index in interviewFlat
+    interviewFlat: [],           // Flattened question list
+    interviewCurrentIdx: 0,
     interviewActive: false,
     interviewCompleted: false,
-    sttRecognition: null,
-    sttListening: false,
-    ttsVoice: null,
+    interviewResolve: null,      // Resolve fn for waiting on user text submit
 };
 
 // ============================================================
@@ -506,23 +498,26 @@ async function captureAndAnalyze() {
 }
 
 function updateCVIndicators(data) {
-    // Emotion — extended FACS emotion set
-    const emotionEl = document.getElementById('cv-emotion');
-    emotionEl.textContent = data.emotion || '—';
+    // Behavior label (from LightGBM model) — preferred over legacy emotion
+    const behaviorEl = document.getElementById('cv-emotion');
+    const label = data.behavior || data.emotion || '—';
+    behaviorEl.textContent = label;
 
-    const emotionColors = {
-        'happy':       '#4ade80',
-        'calm':        '#4ade80',
-        'sad':         '#3b82f6',
-        'surprised':   '#a855f7',
-        'fear':        '#8b5cf6',
-        'angry':       '#ef4444',
-        'disgust':     '#fb923c',
-        'anxious':     '#fb923c',
-        'tired':       '#facc15',
-        'calibrating': '#facc15',
+    const behaviorColors = {
+        'engaged':             '#4ade80',
+        'positive_engagement': '#4ade80',
+        'disengaged':          '#94a3b8',
+        'low_energy':          '#facc15',
+        'withdrawn':           '#3b82f6',
+        'cognitive_load':      '#a855f7',
+        'tense':               '#fb923c',
+        'agitated':            '#ef4444',
+        'overaroused':         '#f87171',
+        'ambiguous':           '#64748b',
+        'calibrating':         '#facc15',
+        'unavailable':         '#64748b',
     };
-    emotionEl.style.color = emotionColors[data.emotion] || '#a0a0cc';
+    behaviorEl.style.color = behaviorColors[label] || '#a0a0cc';
 
     // Confidence
     const confEl = document.getElementById('cv-confidence');
@@ -536,19 +531,18 @@ function updateCVIndicators(data) {
     const stressPercent = ((data.stress + 1) / 2) * 100;
     const stressBar = document.getElementById('cv-stress-bar');
     stressBar.style.width = `${stressPercent}%`;
-    // Color code: red for high stress, green for low
     const sr = Math.round(Math.min(255, (data.stress + 1) / 2 * 510));
     const sg = Math.round(Math.min(255, (1 - (data.stress + 1) / 2) * 510));
     stressBar.style.background = `rgb(${sr},${sg},80)`;
     document.getElementById('cv-stress-value').textContent = data.stress.toFixed(4);
 
-    // EAR (eyes)
+    // EAR
     document.getElementById('cv-eye').textContent = data.eye !== undefined ? data.eye.toFixed(4) : '—';
 
     // Blink rate
     document.getElementById('cv-blink').textContent = data.blink_rate !== undefined ? `${data.blink_rate.toFixed(0)}/min` : '—';
 
-    // Mouth + reliability
+    // Mouth
     document.getElementById('cv-mouth').textContent = data.mouth !== undefined ? data.mouth.toFixed(4) : '—';
     const mouthRelEl = document.getElementById('cv-mouth-rel');
     if (data.mouth_reliability !== undefined) {
@@ -562,15 +556,14 @@ function updateCVIndicators(data) {
         headEl.textContent = `P:${data.head_pitch.toFixed(2)} Y:${data.head_yaw.toFixed(2)}`;
     }
 
-    // ---- FACS Action Unit bars ----
-    // Map AU values to 0-100% bars relative to reasonable ranges
+    // FACS Action Unit bars
     const auDefs = [
         { id: 'au1',  val: data.au1,  range: [0.1, 0.35] },
         { id: 'au2',  val: data.au2,  range: [0.1, 0.40] },
-        { id: 'au4',  val: data.au4,  range: [0.05, 0.35] },  // lower = more furrowed
+        { id: 'au4',  val: data.au4,  range: [0.05, 0.35] },
         { id: 'au5',  val: data.au5,  range: [0.0,  0.30] },
-        { id: 'au6',  val: data.au6,  range: [0.15, 0.45] },  // lower = cheeks raised
-        { id: 'au9',  val: data.au9,  range: [0.10, 0.30] },  // lower = nose wrinkle
+        { id: 'au6',  val: data.au6,  range: [0.15, 0.45] },
+        { id: 'au9',  val: data.au9,  range: [0.10, 0.30] },
         { id: 'au12', val: data.au12, range: [0.30, 0.60] },
         { id: 'au15', val: data.au15, range: [-0.05, 0.05] },
     ];
@@ -583,19 +576,19 @@ function updateCVIndicators(data) {
         if (valEl) valEl.textContent = val.toFixed(3);
     }
 
-    // ---- Landmark overlay ----
+    // Landmark overlay
     if (data.landmarks && state.landmarksVisible) {
         state.lastLandmarks = data.landmarks;
         drawLandmarkOverlay(data.landmarks);
     }
 
-    // Status
+    // Status line — show behavior
     const statusEl = document.getElementById('cv-status');
-    if (data.emotion === 'calibrating') {
-        statusEl.textContent = 'Calibrating — hold still…';
+    if (label === 'calibrating') {
+        statusEl.textContent = 'Calibrating — hold still (30 frames needed)…';
     } else {
         const conf = data.confidence !== undefined ? ` (${(data.confidence*100).toFixed(0)}%)` : '';
-        statusEl.textContent = `Detected: ${data.emotion}${conf} | Stress: ${data.stress > 0 ? '+' : ''}${data.stress.toFixed(2)}`;
+        statusEl.textContent = `Behavior: ${label}${conf} | Stress: ${data.stress > 0 ? '+' : ''}${data.stress.toFixed(2)}`;
     }
 }
 
@@ -623,7 +616,7 @@ function addTranscriptEntry(text, type = 'system') {
 
 
 // ============================================================
-// STT / TTS INTERVIEW SYSTEM
+// TEXT-INPUT INTERVIEW SYSTEM
 // ============================================================
 
 /**
@@ -634,27 +627,22 @@ async function loadInterviewQuestions() {
         const { ok, data } = await api('/api/interview/questions');
         if (ok && data.success) {
             state.interviewQuestions = data.questions;
-
-            // Flatten: each question becomes an entry with its category info
             state.interviewFlat = [];
-            data.questions.forEach((cat, catIdx) => {
-                cat.questions.forEach((q, qIdx) => {
+            data.questions.forEach((cat) => {
+                cat.questions.forEach((q) => {
                     state.interviewFlat.push({
-                        categoryIdx: catIdx,
-                        questionIdx: qIdx,
-                        category: cat.category,
-                        icon: cat.icon,
-                        color: cat.color,
-                        purpose: cat.purpose,
-                        question: q,
-                        critical: cat.critical || false,
-                        risk_check: cat.risk_check || false,
-                        categoryId: cat.id,
+                        category:    cat.category,
+                        icon:        cat.icon,
+                        color:       cat.color,
+                        purpose:     cat.purpose,
+                        question:    q,
+                        critical:    cat.critical || false,
+                        risk_check:  cat.risk_check || false,
+                        categoryId:  cat.id,
                     });
                 });
             });
-
-            console.log(`[Interview] Loaded ${state.interviewFlat.length} questions across ${data.questions.length} categories.`);
+            console.log(`[Interview] ${state.interviewFlat.length} questions loaded.`);
         }
     } catch (err) {
         console.error('Failed to load interview questions:', err);
@@ -662,199 +650,38 @@ async function loadInterviewQuestions() {
 }
 
 /**
- * Initialize Web Speech API (SpeechRecognition).
+ * Wait for the user to submit or skip the current question.
+ * Returns a Promise that resolves with the typed text (or '' for skip).
  */
-function initSTT() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        showToast('Speech recognition not supported in this browser. Please use Chrome.');
-        return false;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;      // Keep listening until Skip/Done is clicked
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.maxAlternatives = 1;
-
-    state.sttRecognition = recognition;
-    return true;
-}
-
-/**
- * Speak text using TTS (SpeechSynthesis).
- * Returns a Promise that resolves when speaking finishes.
- */
-function speak(text) {
+function waitForUserInput() {
     return new Promise((resolve) => {
-        if (!('speechSynthesis' in window)) {
-            console.warn('[TTS] SpeechSynthesis not available.');
-            resolve();
-            return;
-        }
-
-        // Cancel any ongoing speech
-        window.speechSynthesis.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.92;    // Slightly slower for clarity
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-
-        // Try to pick a good voice
-        if (!state.ttsVoice) {
-            const voices = window.speechSynthesis.getVoices();
-            // Prefer Google UK or US voices
-            state.ttsVoice = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en'))
-                          || voices.find(v => v.lang.startsWith('en-US'))
-                          || voices.find(v => v.lang.startsWith('en'))
-                          || voices[0];
-        }
-        if (state.ttsVoice) {
-            utterance.voice = state.ttsVoice;
-        }
-
-        utterance.onend = () => resolve();
-        utterance.onerror = (e) => {
-            console.error('[TTS] Error:', e);
-            resolve();
-        };
-
-        window.speechSynthesis.speak(utterance);
+        state.interviewResolve = resolve;
     });
 }
 
 /**
- * Listen for user speech and return the final transcript.
- * Returns a Promise that resolves with the text.
+ * Update the interview UI for the current question item.
  */
-function listen() {
-    return new Promise((resolve) => {
-        if (!state.sttRecognition) {
-            resolve('');
-            return;
-        }
+function updateInterviewUI(item, idx, total) {
+    const pct = ((idx + 1) / total) * 100;
+    document.getElementById('interview-progress-fill').style.width = `${pct}%`;
+    document.getElementById('interview-progress-label').textContent = `${idx + 1} / ${total} questions`;
 
-        const recognition = state.sttRecognition;
-        let finalTranscript = '';
+    const catEl = document.getElementById('interview-category');
+    catEl.classList.remove('hidden');
+    document.getElementById('interview-category-icon').textContent = item.icon;
+    document.getElementById('interview-category-name').textContent = item.category;
+    document.getElementById('interview-category-name').style.color = item.color;
+    document.getElementById('interview-category-purpose').textContent = item.purpose;
 
-        // Show mic indicator
-        document.getElementById('mic-indicator').classList.remove('hidden');
-        state.sttListening = true;
+    document.getElementById('interview-current-question').textContent = item.question;
 
-        const previewEl = document.getElementById('interview-stt-text');
-        const previewContainer = document.getElementById('interview-response-preview');
-        previewContainer.classList.remove('hidden');
-        previewEl.textContent = '…listening…';
-
-        // Start voice amplitude bar
-        startVoiceBar();
-
-        recognition.onresult = (event) => {
-            let interim = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript + ' ';
-                } else {
-                    interim = transcript;
-                }
-            }
-            previewEl.textContent = finalTranscript + (interim ? `${interim}…` : '');
-        };
-
-        recognition.onend = () => {
-            document.getElementById('mic-indicator').classList.add('hidden');
-            state.sttListening = false;
-            stopVoiceBar();
-            const text = finalTranscript.trim();
-            previewEl.textContent = text || '(no response detected)';
-            resolve(text);
-        };
-
-        recognition.onerror = (event) => {
-            console.error('[STT] Error:', event.error);
-            document.getElementById('mic-indicator').classList.add('hidden');
-            state.sttListening = false;
-
-            if (event.error === 'no-speech') {
-                previewEl.textContent = finalTranscript || '…listening…';
-                return;
-            }
-            stopVoiceBar();
-            previewEl.textContent = `(error: ${event.error})`;
-            resolve(finalTranscript.trim());
-        };
-
-        try {
-            recognition.start();
-        } catch (err) {
-            console.error('[STT] Start error:', err);
-            document.getElementById('mic-indicator').classList.add('hidden');
-            state.sttListening = false;
-            stopVoiceBar();
-            resolve('');
-        }
-    });
-}
-
-// ============================================================
-// VOICE AMPLITUDE BAR (real-time mic level)
-// ============================================================
-
-async function startVoiceBar() {
-    const container = document.getElementById('voice-bar-container');
-    const fill = document.getElementById('voice-bar-fill');
-    container.classList.remove('hidden');
-
-    try {
-        if (!state.audioCtx) {
-            state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        // Request mic access just for analysis (no recording)
-        state.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        const source = state.audioCtx.createMediaStreamSource(state.micStream);
-        state.analyserNode = state.audioCtx.createAnalyser();
-        state.analyserNode.fftSize = 256;
-        source.connect(state.analyserNode);
-
-        const bufLen = state.analyserNode.frequencyBinCount;
-        const dataArr = new Uint8Array(bufLen);
-
-        const tick = () => {
-            if (!state.analyserNode) return;
-            state.analyserNode.getByteFrequencyData(dataArr);
-            const avg = dataArr.reduce((s, v) => s + v, 0) / bufLen;
-            // avg is 0-255; map to 0-100%
-            const pct = Math.min(100, (avg / 128) * 100);
-            fill.style.width = `${pct}%`;
-            // Color: green for low, yellow for mid, red for loud
-            const hue = Math.max(0, 120 - pct * 1.2);
-            fill.style.background = `hsl(${hue}, 80%, 55%)`;
-            state.voiceLevelRaf = requestAnimationFrame(tick);
-        };
-        tick();
-    } catch (err) {
-        console.warn('[VoiceBar] Mic access error:', err);
-        container.classList.add('hidden');
-    }
-}
-
-function stopVoiceBar() {
-    if (state.voiceLevelRaf) {
-        cancelAnimationFrame(state.voiceLevelRaf);
-        state.voiceLevelRaf = null;
-    }
-    if (state.analyserNode) {
-        state.analyserNode.disconnect();
-        state.analyserNode = null;
-    }
-    if (state.micStream) {
-        state.micStream.getTracks().forEach(t => t.stop());
-        state.micStream = null;
-    }
-    document.getElementById('voice-bar-container').classList.add('hidden');
-    document.getElementById('voice-bar-fill').style.width = '0%';
+    // Show and clear the text input
+    const preview = document.getElementById('interview-response-preview');
+    preview.classList.remove('hidden');
+    const input = document.getElementById('interview-text-input');
+    input.value = '';
+    input.focus();
 }
 
 /**
@@ -865,14 +692,15 @@ async function saveInterviewResponse(item, response) {
         await api('/api/interview/save_response', {
             method: 'POST',
             body: {
-                user_id: state.userId || 'anonymous',
-                category: item.category,
-                question: item.question,
-                response: response,
+                user_id:     state.userId || 'anonymous',
+                category:    item.category,
+                question:    item.question,
+                response:    response,
                 question_id: item.categoryId,
                 cv_snapshot: state.cvData ? {
-                    emotion: state.cvData.emotion,
-                    stress: state.cvData.stress,
+                    behavior:   state.cvData.behavior,
+                    emotion:    state.cvData.emotion,
+                    stress:     state.cvData.stress,
                     confidence: state.cvData.confidence,
                     blink_rate: state.cvData.blink_rate,
                 } : null,
@@ -884,32 +712,7 @@ async function saveInterviewResponse(item, response) {
 }
 
 /**
- * Update interview UI with current question.
- */
-function updateInterviewUI(item, idx, total) {
-    // Progress
-    const pct = ((idx + 1) / total) * 100;
-    document.getElementById('interview-progress-fill').style.width = `${pct}%`;
-    document.getElementById('interview-progress-label').textContent = `${idx + 1} / ${total} questions`;
-
-    // Category badge
-    const catEl = document.getElementById('interview-category');
-    catEl.classList.remove('hidden');
-    document.getElementById('interview-category-icon').textContent = item.icon;
-    document.getElementById('interview-category-name').textContent = item.category;
-    document.getElementById('interview-category-name').style.color = item.color;
-    document.getElementById('interview-category-purpose').textContent = item.purpose;
-
-    // Question
-    document.getElementById('interview-current-question').textContent = item.question;
-
-    // Clear response preview
-    document.getElementById('interview-response-preview').classList.add('hidden');
-    document.getElementById('interview-stt-text').textContent = '';
-}
-
-/**
- * Run the full interview loop.
+ * Run the full interview loop (text-input version).
  */
 async function runInterview() {
     if (state.interviewFlat.length === 0) {
@@ -917,111 +720,53 @@ async function runInterview() {
         return;
     }
 
-    // Ensure camera is running
-    if (!state.cameraStream) {
-        showToast('Please start the camera first for emotion tracking during the interview.');
-        return;
-    }
-
-    // Init STT
-    if (!initSTT()) return;
-
-    // Preload voices
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.getVoices();
-    }
-
     state.interviewActive = true;
     state.interviewCurrentIdx = 0;
 
-    // Hide start interview button, show skip and done
     document.getElementById('start-interview-btn').classList.add('hidden');
-    document.getElementById('skip-question-btn').classList.remove('hidden');
     document.getElementById('done-question-btn').classList.remove('hidden');
+    document.getElementById('skip-question-btn').classList.remove('hidden');
 
-    addTranscriptEntry('🎙️ Interview session started. The AI will ask questions and listen to your responses.', 'system');
-
-    // Brief introduction via TTS
-    await speak('Welcome to your MentraAI wellness interview. I\'ll ask you a few questions. Just speak naturally and take your time.');
-    await sleep(500);
+    addTranscriptEntry('💬 Interview started. Read each question and type your response, then click Submit.', 'system');
 
     for (let i = 0; i < state.interviewFlat.length; i++) {
-        if (!state.interviewActive) break;  // Check if stopped/skipped-all
+        if (!state.interviewActive) break;
 
         state.interviewCurrentIdx = i;
         const item = state.interviewFlat[i];
 
-        // Update UI
         updateInterviewUI(item, i, state.interviewFlat.length);
-
-        // Log to transcript
         addTranscriptEntry(`${item.icon} [${item.category}] ${item.question}`, 'ai');
 
-        // Speak the question
-        await speak(item.question);
-
-        if (!state.interviewActive) break;
-
-        // Short pause before listening
-        await sleep(600);
-
-        // Listen indefinitely — only Skip or Done button stops recording
-        const response = await listen();
+        // Wait until user clicks Submit or Skip
+        const response = await waitForUserInput();
 
         if (!state.interviewActive) break;
 
         if (response) {
-            // Log user's response
             addTranscriptEntry(response, 'user');
-
-            // Save to backend
             await saveInterviewResponse(item, response);
         } else {
-            addTranscriptEntry('(no response)', 'user');
+            addTranscriptEntry('(skipped)', 'user');
             await saveInterviewResponse(item, '(no response)');
         }
 
-        // Small pause between questions
-        await sleep(800);
+        await sleep(300);
     }
 
-    // Interview complete
-    state.interviewActive = false;
+    // Done
+    state.interviewActive   = false;
     state.interviewCompleted = true;
 
     document.getElementById('start-interview-btn').classList.remove('hidden');
     document.getElementById('start-interview-btn').querySelector('span').textContent = 'Restart Interview';
-    document.getElementById('skip-question-btn').classList.add('hidden');
     document.getElementById('done-question-btn').classList.add('hidden');
-    document.getElementById('mic-indicator').classList.add('hidden');
-
+    document.getElementById('skip-question-btn').classList.add('hidden');
+    document.getElementById('interview-response-preview').classList.add('hidden');
     document.getElementById('interview-current-question').textContent = '✅ Interview complete! Click "Generate Personal Plan" to see your results.';
 
-    addTranscriptEntry('✅ Interview session completed. All responses have been recorded.', 'system');
-    showToast('Interview complete! Generate your personalized plan now.');
-
-    // Closing TTS
-    await speak('Thank you for sharing. Your responses have been recorded. You can now generate your personalized wellness plan.');
-}
-
-/**
- * Skip the current question (no response recorded).
- */
-function skipCurrentQuestion() {
-    if (state.sttListening && state.sttRecognition) {
-        try { state.sttRecognition.stop(); } catch (_) {}
-    }
-    // The listen() Promise will resolve, and the loop continues
-}
-
-/**
- * Done with the current question — finalize the current recording and move on.
- * This is the same as skip but the user finished speaking.
- */
-function doneCurrentQuestion() {
-    if (state.sttListening && state.sttRecognition) {
-        try { state.sttRecognition.stop(); } catch (_) {}
-    }
+    addTranscriptEntry('✅ Interview completed. All responses recorded.', 'system');
+    showToast('Interview complete! Generate your personalised plan now.');
 }
 
 /** Helper: sleep */
@@ -1036,16 +781,17 @@ function sleep(ms) {
 
 document.getElementById('start-interview-btn').addEventListener('click', () => {
     if (state.interviewActive) {
-        // If already running, stop it
+        // Stop the interview
         state.interviewActive = false;
-        window.speechSynthesis.cancel();
-        if (state.sttRecognition) {
-            try { state.sttRecognition.stop(); } catch (_) {}
+        // Resolve any pending wait so the loop exits
+        if (state.interviewResolve) {
+            state.interviewResolve('');
+            state.interviewResolve = null;
         }
-        document.getElementById('mic-indicator').classList.add('hidden');
         document.getElementById('start-interview-btn').querySelector('span').textContent = 'Start Interview';
-        document.getElementById('skip-question-btn').classList.add('hidden');
         document.getElementById('done-question-btn').classList.add('hidden');
+        document.getElementById('skip-question-btn').classList.add('hidden');
+        document.getElementById('interview-response-preview').classList.add('hidden');
         addTranscriptEntry('⏹️ Interview paused by user.', 'system');
         showToast('Interview paused.');
     } else {
@@ -1053,14 +799,31 @@ document.getElementById('start-interview-btn').addEventListener('click', () => {
     }
 });
 
-document.getElementById('skip-question-btn').addEventListener('click', () => {
-    skipCurrentQuestion();
-    showToast('Skipping question…');
+// Submit button — collect text and resolve the waiting promise
+document.getElementById('done-question-btn').addEventListener('click', () => {
+    if (!state.interviewResolve) return;
+    const input = document.getElementById('interview-text-input');
+    const text  = (input ? input.value : '').trim();
+    const resolve = state.interviewResolve;
+    state.interviewResolve = null;
+    resolve(text || '');
+    showToast('Response recorded — next question…');
 });
 
-document.getElementById('done-question-btn').addEventListener('click', () => {
-    doneCurrentQuestion();
-    showToast('Response recorded — moving to next question…');
+// Skip button — resolve with empty string
+document.getElementById('skip-question-btn').addEventListener('click', () => {
+    if (!state.interviewResolve) return;
+    const resolve = state.interviewResolve;
+    state.interviewResolve = null;
+    resolve('');
+    showToast('Question skipped…');
+});
+
+// Allow pressing Enter+Ctrl / Cmd+Enter to submit from textarea
+document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && state.interviewActive && state.interviewResolve) {
+        document.getElementById('done-question-btn').click();
+    }
 });
 
 
@@ -1075,9 +838,9 @@ document.getElementById('generate-plan-btn').addEventListener('click', async () 
     // Stop interview if running
     if (state.interviewActive) {
         state.interviewActive = false;
-        window.speechSynthesis.cancel();
-        if (state.sttRecognition) {
-            try { state.sttRecognition.stop(); } catch (_) {}
+        if (state.interviewResolve) {
+            state.interviewResolve('');
+            state.interviewResolve = null;
         }
     }
 
@@ -1087,21 +850,23 @@ document.getElementById('generate-plan-btn').addEventListener('click', async () 
         const validEntries = state.cvHistory.filter(d => d.emotion !== 'calibrating');
         if (validEntries.length > 0) {
             const avgStress = validEntries.reduce((s, d) => s + d.stress, 0) / validEntries.length;
-            const avgBlink = validEntries.reduce((s, d) => s + (d.blink_rate || 0), 0) / validEntries.length;
-            const avgConfidence = validEntries.reduce((s, d) => s + (d.confidence || 0), 0) / validEntries.length;
+            const avgBlink  = validEntries.reduce((s, d) => s + (d.blink_rate || 0), 0) / validEntries.length;
+            const avgConf   = validEntries.reduce((s, d) => s + (d.confidence || 0), 0) / validEntries.length;
 
-            // Most common emotion
-            const emotionCounts = {};
+            // Most common behavior label
+            const behaviorCounts = {};
             validEntries.forEach(d => {
-                emotionCounts[d.emotion] = (emotionCounts[d.emotion] || 0) + 1;
+                const lbl = d.behavior || d.emotion || 'ambiguous';
+                behaviorCounts[lbl] = (behaviorCounts[lbl] || 0) + 1;
             });
-            const dominantEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0][0];
+            const dominantBehavior = Object.entries(behaviorCounts).sort((a, b) => b[1] - a[1])[0][0];
 
             avgCvData = {
-                emotion: dominantEmotion,
-                stress: avgStress,
+                behavior:   dominantBehavior,
+                emotion:    dominantBehavior,   // backward compat
+                stress:     avgStress,
                 blink_rate: avgBlink,
-                confidence: avgConfidence,
+                confidence: avgConf,
             };
         }
     }
@@ -1247,22 +1012,9 @@ document.getElementById('followup-btn').addEventListener('click', () => {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Pre-fill demo credentials for convenience
-    document.getElementById('login-email').value = 'demo@mentra.ai';
-    document.getElementById('login-password').value = 'demo123';
-
-    // Preload TTS voices (Chrome loads them async)
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = () => {
-            const voices = window.speechSynthesis.getVoices();
-            state.ttsVoice = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en'))
-                          || voices.find(v => v.lang.startsWith('en-US'))
-                          || voices.find(v => v.lang.startsWith('en'))
-                          || voices[0];
-        };
-        // Trigger voice loading
-        window.speechSynthesis.getVoices();
-    }
+    // Pre-fill demo credentials
+    document.getElementById('login-email').value    = 'demo@mentra.ai';
+    document.getElementById('login-password').value  = 'demo123';
 });
 
 

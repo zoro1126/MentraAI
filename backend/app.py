@@ -28,7 +28,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from cv_pipeline import CVPipeline
-from llm_pipeline import LLMEngine
+from llm_pipeline import LLMEngine, behavior_to_insight, build_behavior_system_prompt, BEHAVIOR_STRESS_MAP
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -348,10 +348,14 @@ def llm_analyze_user_data(
 
     # CV data
     if cv_data:
-        prompt_parts.append(f"\nFacial/Video Analysis:")
-        prompt_parts.append(f"  Dominant Emotion: {cv_data.get('emotion', 'N/A')}")
-        prompt_parts.append(f"  Stress Level: {cv_data.get('stress', 'N/A')}")
-        prompt_parts.append(f"  Confidence: {cv_data.get('confidence', 'N/A')}")
+        prompt_parts.append(f"\nFacial / Behavioral Video Analysis:")
+        # Prefer model-predicted behavior label over legacy emotion
+        behavior = cv_data.get('behavior') or cv_data.get('emotion', 'N/A')
+        behavior_conf = cv_data.get('confidence', 0)
+        prompt_parts.append(f"  Detected Behavior: {behavior} ({behavior_conf:.0%} confidence)")
+        prompt_parts.append(f"  Behavior Description: {behavior_to_insight(behavior, behavior_conf)}")
+        prompt_parts.append(f"  Implied Stress Level: {BEHAVIOR_STRESS_MAP.get(behavior, 'unknown')}")
+        prompt_parts.append(f"  Computed Stress Score: {cv_data.get('stress', 'N/A')}")
         if cv_data.get('blink_rate') is not None:
             prompt_parts.append(f"  Blink Rate: {cv_data['blink_rate']:.0f}/min")
 
@@ -378,19 +382,7 @@ def llm_analyze_user_data(
 
     user_data_text = "\n".join(prompt_parts)
 
-    system_prompt = (
-        "You are an expert clinical psychologist AI assistant for MentraAI, "
-        "a mental health support platform. Analyze the provided patient data "
-        "and generate a comprehensive, empathetic, and personalized mental health response.\n\n"
-        "You MUST respond with a valid JSON object (no markdown, no code fences) with these exact keys:\n"
-        '{"summary": "A 2-3 sentence summary of the patient\'s current state",'
-        ' "advice": "A warm, personalized 3-5 sentence message to the patient",'
-        ' "stress_level": "One of: Minimal, Mild, Moderate, Moderately Severe, Severe",'
-        ' "stress_insights": ["insight 1", "insight 2", "insight 3"],'
-        ' "coping_steps": ["step 1", "step 2", "step 3", "step 4", "step 5"],'
-        ' "reminders": ["reminder 1", "reminder 2", "reminder 3"],'
-        ' "risk_assessment": "low/moderate/high"}'
-    )
+    system_prompt = build_behavior_system_prompt()
 
     user_prompt = (
         f"Here is the complete assessment data for a patient:\n\n"
@@ -524,24 +516,36 @@ def generate_personal_plan(
     # Build stress insights
     stress_insights = []
     if cv_data:
-        emotion = cv_data.get("emotion", "calm")
+        # Behavior label from model (preferred) or fallback to legacy emotion
+        behavior = cv_data.get("behavior") or cv_data.get("emotion", "calibrating")
+        behavior_conf = cv_data.get("confidence", 0)
         stress_val = cv_data.get("stress", 0)
-        confidence = cv_data.get("confidence", 0)
-        # Friendly emotion labels for new FACS set
-        emotion_labels = {
-            "happy": "Happy", "calm": "Calm", "sad": "Sad",
-            "surprised": "Surprised", "fear": "Fearful",
-            "angry": "Angry", "disgust": "Disgusted",
-            "anxious": "Anxious", "tired": "Tired",
+
+        # Behavior-aware labels
+        BEHAVIOR_DISPLAY = {
+            "engaged":             "Engaged",
+            "disengaged":          "Disengaged",
+            "low_energy":          "Low Energy",
+            "agitated":            "Agitated",
+            "tense":               "Tense",
+            "overaroused":         "Overaroused",
+            "withdrawn":           "Withdrawn",
+            "positive_engagement": "Positive Engagement",
+            "cognitive_load":      "Cognitive Load",
+            "ambiguous":           "Ambiguous",
+            "calibrating":         "Calibrating",
         }
-        emotion_display = emotion_labels.get(emotion, emotion.capitalize())
-        stress_insights.append(f"Detected emotion: {emotion_display} ({confidence:.0%} confidence)")
-        if stress_val > 0.3:
-            stress_insights.append("Elevated stress levels observed during video analysis")
-        elif stress_val < -0.2:
-            stress_insights.append("You appeared calm and relaxed during the session")
+        display = BEHAVIOR_DISPLAY.get(behavior, behavior.replace("_", " ").title())
+        stress_insights.append(f"Detected behavior: {display} ({behavior_conf:.0%} confidence)")
+
+        implied_stress = BEHAVIOR_STRESS_MAP.get(behavior, "unknown")
+        if implied_stress == "high" or stress_val > 0.3:
+            stress_insights.append("Elevated behavioral stress indicators detected during video analysis")
+        elif implied_stress == "low" or stress_val < -0.2:
+            stress_insights.append("Calm and positive behavioral signals observed")
         else:
-            stress_insights.append("Moderate stress levels observed")
+            stress_insights.append("Moderate behavioral stress indicators observed")
+
         blink = cv_data.get("blink_rate")
         if blink is not None:
             if blink > 25:
