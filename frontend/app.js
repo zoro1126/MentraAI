@@ -208,18 +208,27 @@ document.getElementById('signup-form').addEventListener('submit', async (e) => {
 document.getElementById('profile-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    // Use optional chaining so that removed/missing fields default to ''
+    const getVal = (id) => (document.getElementById(id)?.value ?? '').trim();
+
     const profile = {
         user_id: state.userId || 'anonymous',
-        first_name: document.getElementById('profile-first-name').value.trim(),
-        last_name: document.getElementById('profile-last-name').value.trim(),
-        age: document.getElementById('profile-age').value,
-        occupation: document.getElementById('profile-occupation').value.trim(),
-        profession: document.getElementById('profile-profession').value.trim(),
-        hobbies: document.getElementById('profile-hobbies').value.trim(),
-        country: document.getElementById('profile-country').value.trim(),
-        state: document.getElementById('profile-state').value.trim(),
-        city: document.getElementById('profile-city').value.trim(),
+        first_name: getVal('profile-first-name'),
+        last_name: getVal('profile-last-name'),
+        age: document.getElementById('profile-age')?.value || '',
+        occupation: getVal('profile-occupation'),
+        profession: getVal('profile-profession'),
+        hobbies: getVal('profile-hobbies'),
+        country: getVal('profile-country'),   // may be absent — defaults to ''
+        state: getVal('profile-state'),
+        city: getVal('profile-city'),
     };
+
+    // Basic validation: require at least a first name
+    if (!profile.first_name) {
+        showToast('Please enter at least your first name.');
+        return;
+    }
 
     showLoading('Saving profile…');
     try {
@@ -236,11 +245,12 @@ document.getElementById('profile-form').addEventListener('submit', async (e) => 
             showScreen('screen-phq9');
         } else {
             hideLoading();
-            showToast('Failed to save profile.');
+            showToast(data.error || 'Failed to save profile.');
         }
     } catch (err) {
+        console.error('Profile save error:', err);
         hideLoading();
-        showToast('Network error.');
+        showToast('Network error. Is the server running?');
     }
 });
 
@@ -967,20 +977,388 @@ function renderPlan(plan) {
 
 
 // ============================================================
-// PLAN ACTION BUTTONS
+// PDF CLINICAL REPORT GENERATOR
 // ============================================================
 
-document.getElementById('save-plan-btn').addEventListener('click', () => {
-    if (!state.plan) return;
-    const blob = new Blob([JSON.stringify(state.plan, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mentra_plan_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Plan saved to file!');
-});
+function generateClinicalReport() {
+    if (!state.plan) {
+        showToast('Please generate your plan first before downloading.');
+        return;
+    }
+
+    const plan  = state.plan;
+    const prof  = state.profile    || {};
+    const phq   = state.phq9Result || {};
+    const now   = new Date();
+    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+    const esc = (s) => String(s || '—')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const fullName = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || 'Patient';
+
+    const severityPalette = {
+        'Minimal':           { bg: '#dcfce7', text: '#16a34a', border: '#86efac' },
+        'Mild':              { bg: '#fef9c3', text: '#ca8a04', border: '#fde047' },
+        'Moderate':          { bg: '#ffedd5', text: '#ea580c', border: '#fdba74' },
+        'Moderately Severe': { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' },
+        'Severe':            { bg: '#fce7f3', text: '#be185d', border: '#f9a8d4' },
+    };
+    const sev = severityPalette[phq.severity] || { bg: '#ede9fe', text: '#7c3aed', border: '#c4b5fd' };
+
+    const phqScore = phq.total_score !== undefined ? phq.total_score : '—';
+    const phqPct   = phq.total_score !== undefined ? Math.round((phq.total_score / 27) * 100) : 0;
+    const scoreColor = sev.text;
+
+    const copingHTML = (plan.coping_steps || []).map((s, i) => `
+      <div class="list-item">
+        <div class="list-num">${i + 1}</div>
+        <div class="list-text">${esc(s)}</div>
+      </div>`).join('');
+
+    const remindersHTML = (plan.reminders || []).map(r => `
+      <div class="reminder-row"><span>🔔</span><span>${esc(r)}</span></div>`).join('');
+
+    const insightsHTML = (plan.stress_insights || []).map(s => `
+      <div class="insight-row"><span class="arr">→</span><span>${esc(s)}</span></div>`).join('');
+
+    const resourcesHTML = (plan.resources || []).map(r => `
+      <div class="res-card">
+        <div class="res-name">${esc(r.name)}</div>
+        <div class="res-detail">${esc(r.detail)}</div>
+      </div>`).join('');
+
+    const ia = plan.interview_analysis || null;
+    const interviewSection = (ia && ia.analyzed) ? `
+      <div class="section">
+        <div class="sec-hdr purple-h"><span>💬</span><h2>Interview Analysis</h2></div>
+        <div class="sec-body">
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-lbl">Engagement</span><span class="kv-val">${esc(ia.engagement)}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Words Spoken</span><span class="kv-val">${ia.word_count}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Sentiment</span><span class="kv-val">${esc(ia.sentiment)}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Risk Indicators</span>
+              <span class="kv-val" style="color:${ia.risk_flag ? '#dc2626' : '#16a34a'};font-weight:700">
+                ${ia.risk_flag ? '⚠️ Present' : '✅ None Detected'}</span></div>
+          </div>
+          ${(ia.insights || []).length > 0 ? '<div style="margin-top:14px"><b style="font-size:.82rem;color:#374151">Key Insights</b><ul class="plain-list" style="margin-top:8px">' +
+            ia.insights.map(x => `<li>${esc(x)}</li>`).join('') + '</ul></div>' : ''}
+        </div>
+      </div>` : '';
+
+    const cvSection = state.cvData ? `
+      <div class="section">
+        <div class="sec-hdr blue-h"><span>🎥</span><h2>Behavioral &amp; Stress Analysis (CV)</h2></div>
+        <div class="sec-body">
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-lbl">Detected Behavior</span><span class="kv-val">${esc(state.cvData.behavior || state.cvData.emotion)}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Confidence</span><span class="kv-val">${state.cvData.confidence !== undefined ? (state.cvData.confidence * 100).toFixed(0) + '%' : '—'}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Stress Score</span><span class="kv-val">${state.cvData.stress !== undefined ? state.cvData.stress.toFixed(4) : '—'}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Blink Rate</span><span class="kv-val">${state.cvData.blink_rate !== undefined ? state.cvData.blink_rate.toFixed(0) + '/min' : '—'}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Eye Aperture (EAR)</span><span class="kv-val">${state.cvData.eye !== undefined ? state.cvData.eye.toFixed(4) : '—'}</span></div>
+            <div class="kv-item"><span class="kv-lbl">Head Pose (Pitch/Yaw)</span><span class="kv-val">${state.cvData.head_pitch !== undefined ? `${state.cvData.head_pitch.toFixed(2)} / ${(state.cvData.head_yaw || 0).toFixed(2)}` : '—'}</span></div>
+          </div>
+        </div>
+      </div>` : '';
+
+    const locationStr = [prof.city, prof.state, prof.country].filter(Boolean).join(', ') || 'India';
+
+    const profileHTML = `
+      <div class="kv-grid">
+        <div class="kv-item"><span class="kv-lbl">Full Name</span><span class="kv-val">${esc(fullName)}</span></div>
+        <div class="kv-item"><span class="kv-lbl">Age</span><span class="kv-val">${esc(prof.age)}</span></div>
+        <div class="kv-item"><span class="kv-lbl">Occupation</span><span class="kv-val">${esc(prof.occupation)}</span></div>
+        <div class="kv-item"><span class="kv-lbl">Field / Profession</span><span class="kv-val">${esc(prof.profession)}</span></div>
+        <div class="kv-item kv-wide"><span class="kv-lbl">Location</span><span class="kv-val">${esc(locationStr)}</span></div>
+        ${prof.hobbies ? `<div class="kv-item kv-wide"><span class="kv-lbl">Hobbies &amp; Interests</span><span class="kv-val">${esc(prof.hobbies)}</span></div>` : ''}
+      </div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MentraAI Report — ${esc(fullName)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;font-size:13.5px;line-height:1.65;color:#111827;background:#fff}
+
+/* COVER */
+.cover{min-height:100vh;display:flex;flex-direction:column;padding:60px 72px;
+  background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);
+  color:#fff;page-break-after:always;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;top:-120px;right:-120px;width:500px;height:500px;
+  border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.25) 0%,transparent 70%)}
+.cover::after{content:'';position:absolute;bottom:-80px;left:-80px;width:400px;height:400px;
+  border-radius:50%;background:radial-gradient(circle,rgba(168,85,247,.2) 0%,transparent 70%)}
+
+.cover-nav{display:flex;align-items:center;gap:14px;margin-bottom:auto;position:relative;z-index:1}
+.logo-pill{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#a855f7);
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  box-shadow:0 0 32px rgba(99,102,241,.5)}
+.logo-txt{font-size:1.8rem;font-weight:800;letter-spacing:-.5px}
+.logo-txt span{color:#a5b4fc}
+
+.cover-body{position:relative;z-index:1}
+.badge{display:inline-block;padding:4px 14px;background:rgba(99,102,241,.3);
+  border:1px solid rgba(99,102,241,.5);border-radius:20px;font-size:.7rem;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;color:#c7d2fe;margin-bottom:24px}
+.cover-title{font-size:3rem;font-weight:800;line-height:1.15;letter-spacing:-1.5px;margin-bottom:12px;
+  background:linear-gradient(135deg,#fff 30%,#a5b4fc 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cover-sub{font-size:1.1rem;color:#c7d2fe;font-weight:400;margin-bottom:48px}
+
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:40px}
+.info-box{padding:20px 24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:12px}
+.info-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:1.2px;color:#a5b4fc;font-weight:600;margin-bottom:4px}
+.info-val{font-size:1.05rem;font-weight:700;color:#fff}
+
+.disclaimer{margin-top:48px;padding:14px 20px;background:rgba(239,68,68,.08);
+  border:1px solid rgba(239,68,68,.25);border-radius:10px;font-size:.74rem;color:#fca5a5;
+  line-height:1.6;position:relative;z-index:1}
+.cover-foot{margin-top:40px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);
+  display:flex;justify-content:space-between;font-size:.73rem;color:rgba(255,255,255,.4);
+  position:relative;z-index:1}
+
+/* PAGES */
+.page{padding:52px 64px;page-break-after:always}
+.page:last-child{page-break-after:auto}
+.page-hdr{display:flex;justify-content:space-between;align-items:center;
+  padding-bottom:16px;border-bottom:2px solid #e5e7eb;margin-bottom:36px}
+.phdr-brand{font-size:.73rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6366f1}
+.phdr-name{font-size:.73rem;color:#9ca3af}
+
+/* SECTIONS */
+.section{margin-bottom:32px;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb}
+.sec-hdr{display:flex;align-items:center;gap:12px;padding:15px 22px}
+.sec-hdr h2{font-size:.95rem;font-weight:700;letter-spacing:-.2px}
+.sec-hdr span{font-size:1.15rem}
+.sec-body{padding:22px;background:#fff}
+
+.indigo-h{background:linear-gradient(135deg,#eef2ff,#e0e7ff);color:#3730a3}
+.green-h {background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#15803d}
+.purple-h{background:linear-gradient(135deg,#faf5ff,#ede9fe);color:#7e22ce}
+.blue-h  {background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1d4ed8}
+.amber-h {background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#b45309}
+.red-h   {background:linear-gradient(135deg,#fff1f2,#ffe4e6);color:#be123c}
+.teal-h  {background:linear-gradient(135deg,#f0fdfa,#ccfbf1);color:#0f766e}
+
+/* KV */
+.kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
+.kv-item{display:flex;flex-direction:column;gap:3px}
+.kv-wide{grid-column:1/-1}
+.kv-lbl{font-size:.67rem;text-transform:uppercase;letter-spacing:.8px;color:#9ca3af;font-weight:600}
+.kv-val{font-size:.93rem;font-weight:600;color:#111827}
+
+/* PHQ-9 */
+.phq-block{display:flex;align-items:center;gap:32px;padding:22px;background:#fff}
+.phq-circle{width:108px;height:108px;border-radius:50%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;border:5px solid ${scoreColor};flex-shrink:0}
+.phq-num{font-size:2.2rem;font-weight:800;color:${scoreColor};line-height:1}
+.phq-den{font-size:.72rem;color:#9ca3af}
+.severity-pill{display:inline-block;padding:5px 16px;border-radius:20px;font-size:.82rem;font-weight:700;
+  background:${sev.bg};color:${sev.text};border:1.5px solid ${sev.border};margin-bottom:10px}
+.bar-track{width:100%;height:11px;background:#f3f4f6;border-radius:6px;overflow:hidden;margin:8px 0}
+.bar-fill{height:100%;width:${phqPct}%;background:linear-gradient(90deg,#6366f1,${scoreColor});border-radius:6px}
+.phq-interp{font-size:.82rem;color:#6b7280;line-height:1.7;font-style:italic}
+
+/* ADVICE */
+.advice-box{padding:18px 22px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);
+  border-left:5px solid #7c3aed;border-radius:0 10px 10px 0;font-size:.9rem;line-height:1.8;
+  color:#1f2937;margin:0 22px 22px}
+
+/* NUMBERED LIST */
+.list-item{display:flex;align-items:flex-start;gap:14px;padding:11px 0;border-bottom:1px solid #f3f4f6}
+.list-item:last-child{border-bottom:none}
+.list-num{width:27px;height:27px;min-width:27px;border-radius:50%;
+  background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;
+  font-size:.73rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.list-text{font-size:.86rem;color:#374151;line-height:1.6;padding-top:3px}
+
+/* REMINDERS */
+.reminder-row{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;margin-bottom:5px;
+  background:#f0fdfa;border-left:3px solid #14b8a6;border-radius:0 7px 7px 0;
+  font-size:.84rem;color:#134e4a}
+
+/* INSIGHTS */
+.insight-row{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:.84rem;
+  color:#374151;border-bottom:1px solid #f3f4f6}
+.insight-row:last-child{border-bottom:none}
+.arr{color:#7c3aed;font-weight:700;flex-shrink:0}
+
+/* RESOURCES */
+.res-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:22px}
+.res-card{padding:14px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px}
+.res-name{font-weight:700;font-size:.83rem;color:#111827;margin-bottom:3px}
+.res-detail{font-size:.76rem;color:#e11d48}
+
+/* PLAIN LIST */
+.plain-list{padding-left:18px}
+.plain-list li{font-size:.83rem;color:#374151;padding:3px 0}
+
+/* SIGNATURE */
+.sig-block{margin-top:36px;padding:22px;border:1px solid #e5e7eb;border-radius:12px;
+  display:grid;grid-template-columns:1fr 1fr;gap:40px;background:#fafafa}
+.sig-line{border-top:1.5px solid #d1d5db;padding-top:8px;font-size:.72rem;color:#9ca3af}
+
+@media print {
+  @page{size:A4;margin:0}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cover{min-height:100vh}
+}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-nav">
+    <div class="logo-pill">🧠</div>
+    <div class="logo-txt">Mentra<span>AI</span></div>
+  </div>
+  <div class="cover-body">
+    <div class="badge">Confidential Clinical Report</div>
+    <div class="cover-title">Mental Health<br>Assessment Report</div>
+    <div class="cover-sub">AI-powered screening &amp; personalised wellness plan</div>
+    <div class="info-grid">
+      <div class="info-box"><div class="info-lbl">Patient</div><div class="info-val">${esc(fullName)}</div></div>
+      <div class="info-box"><div class="info-lbl">Report Date</div><div class="info-val">${dateStr}</div></div>
+      <div class="info-box"><div class="info-lbl">PHQ-9 Result</div>
+        <div class="info-val" style="color:${sev.text}">${phqScore}/27 — ${esc(phq.severity)}</div></div>
+      <div class="info-box"><div class="info-lbl">Platform</div><div class="info-val">MentraAI v2.0</div></div>
+    </div>
+    <div class="disclaimer">
+      ⚠️ <strong>Important:</strong> This report is generated by an AI screening tool and is <strong>not a clinical diagnosis</strong>.
+      Please consult a qualified mental health professional for diagnosis and treatment.
+    </div>
+    <div class="cover-foot">
+      <span>MentraAI — AI Mental Health Companion</span>
+      <span>Generated ${dateStr} at ${timeStr}</span>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: PROFILE + PHQ-9 -->
+<div class="page">
+  <div class="page-hdr">
+    <span class="phdr-brand">MentraAI Clinical Report</span>
+    <span class="phdr-name">${esc(fullName)} | ${dateStr}</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-hdr indigo-h"><span>👤</span><h2>Patient Profile</h2></div>
+    <div class="sec-body">${profileHTML}</div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hdr green-h"><span>📋</span><h2>PHQ-9 Depression Screening</h2></div>
+    <div class="phq-block">
+      <div class="phq-circle">
+        <div class="phq-num">${phqScore}</div>
+        <div class="phq-den">out of 27</div>
+      </div>
+      <div style="flex:1">
+        <div class="severity-pill">${esc(phq.severity || '—')} Depression</div>
+        <div class="bar-track"><div class="bar-fill"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:.7rem;color:#9ca3af;margin-top:4px">
+          <span>0 — Minimal</span><span>14 — Moderate</span><span>27 — Severe</span>
+        </div>
+        <div class="phq-interp">${esc(phq.interpretation)}</div>
+      </div>
+    </div>
+  </div>
+
+  ${cvSection}
+</div>
+
+<!-- PAGE 3: ADVICE + INSIGHTS + INTERVIEW -->
+<div class="page">
+  <div class="page-hdr">
+    <span class="phdr-brand">MentraAI Clinical Report</span>
+    <span class="phdr-name">${esc(fullName)} | ${dateStr}</span>
+  </div>
+
+  ${plan.profile_summary ? `
+  <div class="section">
+    <div class="sec-hdr purple-h"><span>🔍</span><h2>Clinical Summary</h2></div>
+    <div class="sec-body"><p style="font-size:.9rem;color:#374151;line-height:1.8">${esc(plan.profile_summary)}</p></div>
+  </div>` : ''}
+
+  ${insightsHTML ? `
+  <div class="section">
+    <div class="sec-hdr amber-h"><span>📊</span><h2>Stress &amp; Behavioral Insights</h2></div>
+    <div class="sec-body">${insightsHTML}</div>
+  </div>` : ''}
+
+  <div class="section">
+    <div class="sec-hdr purple-h"><span>🤖</span><h2>AI-Generated Advice</h2></div>
+    <div class="advice-box">${esc(plan.advice)}</div>
+  </div>
+
+  ${interviewSection}
+</div>
+
+<!-- PAGE 4: COPING + REMINDERS + RESOURCES -->
+<div class="page">
+  <div class="page-hdr">
+    <span class="phdr-brand">MentraAI Clinical Report</span>
+    <span class="phdr-name">${esc(fullName)} | ${dateStr}</span>
+  </div>
+
+  ${copingHTML ? `
+  <div class="section">
+    <div class="sec-hdr teal-h"><span>🛠️</span><h2>Personalised Coping Steps</h2></div>
+    <div class="sec-body">${copingHTML}</div>
+  </div>` : ''}
+
+  ${remindersHTML ? `
+  <div class="section">
+    <div class="sec-hdr blue-h"><span>🔔</span><h2>Daily Wellness Reminders</h2></div>
+    <div class="sec-body">${remindersHTML}</div>
+  </div>` : ''}
+
+  <div class="section">
+    <div class="sec-hdr red-h"><span>🆘</span><h2>Crisis &amp; Support Resources</h2></div>
+    <div class="res-grid">${resourcesHTML}</div>
+  </div>
+
+  <div class="sig-block">
+    <div><div class="sig-line">Patient Signature / Date</div></div>
+    <div><div class="sig-line">Reviewing Clinician / Date</div></div>
+  </div>
+
+  <p style="margin-top:24px;font-size:.7rem;color:#8b5cf6;text-align:center;line-height:1.8">
+    This document was generated by MentraAI — an AI-assisted mental health screening platform.<br>
+    For clinical decisions, always consult a licensed mental health professional.<br>
+    <strong>iCall (India): 9152987821 | Vandrevala Foundation: 1860-2662-345 (24/7 free)</strong>
+  </p>
+</div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=780');
+    if (!win) {
+        showToast('Pop-up blocked. Please allow pop-ups and try again.');
+        return;
+    }
+    win.document.write(html);
+    win.document.close();
+    // Wait for Google Fonts to load, then print
+    win.addEventListener('load', () => {
+        setTimeout(() => { win.focus(); win.print(); }, 900);
+    });
+    showToast('Opening clinical report — save as PDF from the print dialog…');
+}
+
+
+// ============================================================
+
+document.getElementById('save-plan-btn').addEventListener('click', generateClinicalReport);
+
 
 document.getElementById('share-plan-btn').addEventListener('click', async () => {
     if (navigator.share && state.plan) {
@@ -1008,6 +1386,90 @@ document.getElementById('followup-btn').addEventListener('click', () => {
 
 
 // ============================================================
+// STT (Speech-to-Text) TOGGLE — Web Speech API
+// ============================================================
+
+(function setupSTT() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const btn = document.getElementById('stt-toggle-btn');
+    const label = document.getElementById('stt-toggle-label');
+    const indicator = document.getElementById('mic-indicator');
+    const textarea = document.getElementById('interview-text-input');
+
+    if (!btn) return;  // guard
+
+    if (!SpeechRecognition) {
+        btn.title = 'Speech recognition not supported in this browser';
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+        btn.addEventListener('click', () => showToast('Voice input not supported in this browser. Please type your answer.'));
+        return;
+    }
+
+    let recognition = null;
+    let sttActive = false;
+
+    function startSTT() {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-IN';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        let finalTranscript = textarea ? textarea.value : '';
+
+        recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const t = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += t + ' ';
+                } else {
+                    interim = t;
+                }
+            }
+            if (textarea) textarea.value = finalTranscript + interim;
+        };
+
+        recognition.onerror = (e) => {
+            console.warn('STT error:', e.error);
+            stopSTT();
+            showToast(`Voice error: ${e.error}. Please type your answer.`);
+        };
+
+        recognition.onend = () => {
+            if (sttActive) recognition.start();  // keep going if not manually stopped
+        };
+
+        recognition.start();
+        sttActive = true;
+        if (label) label.textContent = 'Stop';
+        if (indicator) indicator.classList.remove('hidden');
+        btn.classList.add('btn-mic-active');
+    }
+
+    function stopSTT() {
+        sttActive = false;
+        if (recognition) { try { recognition.stop(); } catch (_) {} recognition = null; }
+        if (label) label.textContent = 'Voice';
+        if (indicator) indicator.classList.add('hidden');
+        btn.classList.remove('btn-mic-active');
+    }
+
+    btn.addEventListener('click', () => {
+        if (sttActive) { stopSTT(); }
+        else { startSTT(); }
+    });
+
+    // Stop STT whenever the interview advances (submit/skip)
+    ['done-question-btn', 'skip-question-btn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', stopSTT, { capture: true });
+    });
+})();
+
+
+// ============================================================
 // INITIALIZATION
 // ============================================================
 
@@ -1015,6 +1477,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Pre-fill demo credentials
     document.getElementById('login-email').value    = 'demo@mentra.ai';
     document.getElementById('login-password').value  = 'demo123';
+
+    // Wire up the profile → PHQ-9 nav button to also load questions
+    const profileForwardBtn = document.getElementById('profile-next-nav-btn');
+    if (profileForwardBtn) {
+        profileForwardBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadPHQ9Questions();
+            showScreen('screen-phq9');
+        });
+    }
 });
 
 

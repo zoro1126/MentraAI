@@ -1305,6 +1305,60 @@ body {
     margin-bottom: 6px;
 }
 
+/* Label + mic button row inside the response preview */
+.response-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.response-input-row label {
+    margin-bottom: 0;
+}
+
+/* Compact voice toggle pill button */
+.btn-mic {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius-pill);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.btn-mic svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.btn-mic:hover {
+    background: rgba(99,102,241,0.12);
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+}
+
+.btn-mic-active {
+    background: rgba(239,68,68,0.12) !important;
+    border-color: rgba(239,68,68,0.5) !important;
+    color: var(--accent-red) !important;
+    animation: micGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes micGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+    50% { box-shadow: 0 0 12px 4px rgba(239,68,68,0.3); }
+}
+
 /* Text input for typed interview responses */
 .interview-textarea {
     width: 100%;

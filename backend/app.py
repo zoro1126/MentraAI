@@ -333,13 +333,8 @@ def llm_analyze_user_data(
         prompt_parts.append(f"Field: {profile['profession']}")
     if profile.get("hobbies"):
         prompt_parts.append(f"Hobbies: {profile['hobbies']}")
-    if profile.get("country"):
-        location = profile['country']
-        if profile.get('state'):
-            location = f"{profile['state']}, {location}"
-        if profile.get('city'):
-            location = f"{profile['city']}, {location}"
-        prompt_parts.append(f"Location: {location}")
+    # Location is always India (UI field removed)
+    prompt_parts.append("Location: India")
 
     # PHQ-9 results
     phq_score = assessment.get("total_score", 0)
@@ -590,7 +585,7 @@ def generate_personal_plan(
         coping_steps = [
             "We strongly recommend consulting a mental health professional soon",
             "Reach out to a trusted person about how you're feeling",
-            "Crisis helpline: 988 Suicide & Crisis Lifeline (call or text 988)",
+            "Contact iCall Helpline (TISS): 9152987821 — free counselling for anyone in India",
             "Focus on basic self-care: eating, sleeping, and hygiene",
             "Avoid making major life decisions during this time",
             "Practice grounding techniques: 5-4-3-2-1 sensory exercise",
@@ -610,10 +605,10 @@ def generate_personal_plan(
 
     # Resources
     resources = [
-        {"name": "988 Suicide & Crisis Lifeline", "detail": "Call or text 988"},
-        {"name": "Crisis Text Line", "detail": "Text HOME to 741741"},
-        {"name": "NAMI Helpline", "detail": "1-800-950-NAMI (6264)"},
-        {"name": "MentalHealth.gov", "detail": "https://www.mentalhealth.gov"},
+        {"name": "iCall — TISS Counselling Helpline", "detail": "Call 9152987821 (Mon–Sat, 8 AM–8 PM)"},
+        {"name": "Vandrevala Foundation Helpline", "detail": "1860-2662-345 | 1800-2333-330 (24/7, free)"},
+        {"name": "NIMHANS Helpline", "detail": "080-46110007 | Bangalore"},
+        {"name": "iMind Mental Health — NICTS", "detail": "1-800-599-0019 (toll-free, 24/7)"},
     ]
 
     # Reminders
@@ -876,10 +871,10 @@ def generate_plan():
             "coping_steps": llm_result.get("coping_steps", []),
             "reminders": llm_result.get("reminders", []),
             "resources": [
-                {"name": "988 Suicide & Crisis Lifeline", "detail": "Call or text 988"},
-                {"name": "Crisis Text Line", "detail": "Text HOME to 741741"},
-                {"name": "NAMI Helpline", "detail": "1-800-950-NAMI (6264)"},
-                {"name": "MentalHealth.gov", "detail": "https://www.mentalhealth.gov"},
+                {"name": "iCall — TISS Counselling Helpline", "detail": "Call 9152987821 (Mon–Sat, 8 AM–8 PM)"},
+                {"name": "Vandrevala Foundation Helpline", "detail": "1860-2662-345 | 1800-2333-330 (24/7, free)"},
+                {"name": "NIMHANS Helpline", "detail": "080-46110007 | Bangalore"},
+                {"name": "iMind Mental Health — NICTS", "detail": "1-800-599-0019 (toll-free, 24/7)"},
             ],
             "advice": llm_result.get("advice", ""),
             "interview_analysis": interview_analysis if interview_analysis else None,
