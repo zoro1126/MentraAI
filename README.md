@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="MentraAI Banner" width="100%" />
 </p>
 
-<h1 align="center">🧠 MentraAI</h1>
+<h1 align="center">MentraAI 🧠</h1>
 
 <p align="center">
   <strong>AI-Powered Mental Health Companion — Private, Real-Time, Personalized</strong>
